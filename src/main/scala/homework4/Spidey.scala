@@ -7,6 +7,8 @@ import homework4.math.Monoid
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
 
+import scala.language.postfixOps
+
 case class SpideyConfig(
   maxDepth: Int,
   sameDomainOnly: Boolean = true,
@@ -23,7 +25,11 @@ class Spidey(httpClient: HttpClient)(using ExecutionContext):
     var response = Await.result(httpClient.get(url), Duration(5, duration.SECONDS))
     println("Response receieved from: " + url + " ; Length: " + response.body.length)
     println("Processing: " + url)
-    var baseMonoid = Await.result(processor(url, response), Duration(200, duration.SECONDS))
+    var errorCount = 0
+    var baseMonoid = Await.result(
+      processor(url, response),
+      Duration(200, duration.SECONDS)
+    )
     println("Completed Processing: " + url)
 
     if config.maxDepth > 0 then
@@ -33,6 +39,7 @@ class Spidey(httpClient: HttpClient)(using ExecutionContext):
           url
         )
         .distinct
+        .filter((p: String) => !config.sameDomainOnly || HttpUtils.sameDomain(p, url))
         .map((link: String) => crawlDeeper[O](config, processor)(link))
 
       baseMonoid |+| monoidSum(
